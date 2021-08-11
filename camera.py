@@ -73,6 +73,7 @@ class Predicter:
                         fc = self.gray[y:y+h, x:x+w]
                         
                         roi = cv2.resize(fc, (48, 48))
+                        roi = cv2.normalize(roi,None)
                         pred = self.cnn.predict_emotion(roi[np.newaxis, :, :, np.newaxis])
 
                         cv2.putText(self.frame, pred, (x, y), self.font, 1, (255, 255, 0), 2)
@@ -105,9 +106,8 @@ def start_app(cnn,src=0):
         data_retriver.__get_data__()
         predicter.set_frame(data_retriver.frame)
     data_retriver.close()
-    displayer.stop()
-    sleep(20)
     predicter.stop()
+    displayer.stop()
 
 if __name__ == '__main__':
     model = FacialExpressionModel("face_model.json", "face_model.h5")
