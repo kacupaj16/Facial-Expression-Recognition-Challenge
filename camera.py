@@ -31,6 +31,7 @@ class Displayer:
     def start(self):
         Thread(target=self.display,args=()).start()
         return self
+
     def display(self):
         while not self.done:
             cv2.imshow('Filter', self.frame)
@@ -54,8 +55,7 @@ class Predicter:
         self.cnn = cnn
         self.displayer = displayer
         self.facec = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-        self.gray = None
-        self.faces = None
+        #list where the images used to write the video files are stored
         self.predictions = []
 
 
@@ -66,6 +66,7 @@ class Predicter:
 
     def predict(self):
         while not self.done:
+            #when a new frame is grabed a prediction is made
             if self.newFrame:
                 self.gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
                 self.faces = self.facec.detectMultiScale(self.gray, 1.3, 5)
@@ -90,7 +91,8 @@ class Predicter:
     
     def stop(self,):
         self.done = True
-        print(self.count)
+        #at the end of the program, when there are no more frames to check, write all the predictions
+        #into a video file 
         out = cv2.VideoWriter('FER.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 15, (480,640))
  
         for i in range(len(self.predictions)):
@@ -98,20 +100,25 @@ class Predicter:
         out.release()
 
 
-
+#app runs on three threads: one to grab the data, one to find faces and predict emotions and finally one to display results
 def start_app(cnn,src=0):
     startTime = datetime.now()
+    #the variable runningTime specifies the amount of time the camera should run 
+    #the variable is set to 60 seconds taking into consideration the setup time requirement 
+    #and the 30 seconds actually used to grab images
     runningTime = 60
+
+    #start threads
     data_retriver = DataRetriever(src).start()
-    
-    print("Frames per second using video.get(cv2.cv.CV_CAP_PROP_FPS): {0}".format(data_retriver.fps))
     displayer = Displayer().start()
     predicter = Predicter(cnn,displayer).start()
 
-
+    #actual program
     while (datetime.now()-startTime).seconds<runningTime:
         data_retriver.__get_data__()
         predicter.set_frame(data_retriver.frame)
+
+    #end threads
     data_retriver.close()
     predicter.stop()
     displayer.stop()
