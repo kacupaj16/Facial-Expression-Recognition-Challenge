@@ -2,10 +2,8 @@ import cv2
 from model import FacialExpressionModel
 import numpy as np
 from threading import Thread
-import concurrent
 from datetime import datetime
 from time import sleep
-
 
 class DataRetriever:
     def __init__(self,src=0):
@@ -58,6 +56,8 @@ class Predicter:
         self.facec = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
         self.gray = None
         self.faces = None
+        self.predictions = []
+
 
     
     def start(self,):
@@ -73,14 +73,15 @@ class Predicter:
                         fc = self.gray[y:y+h, x:x+w]
                         
                         roi = cv2.resize(fc, (48, 48))
-                        roi = cv2.normalize(roi,None)
+                        #roi = cv2.normalize(roi,None)
                         pred = self.cnn.predict_emotion(roi[np.newaxis, :, :, np.newaxis])
 
                         cv2.putText(self.frame, pred, (x, y), self.font, 1, (255, 255, 0), 2)
                         cv2.rectangle(self.frame,(x,y),(x+w,y+h),(255,0,0),2)
                 self.displayer.frame = self.frame
-                cv2.imwrite('f'+str(self.count).zfill(4) + '.jpg',self.frame)
+                #cv2.imwrite('f'+str(self.count).zfill(4) + '.jpg',self.frame)
                 self.count +=1
+                self.predictions.append(self.frame)
                 self.newFrame = False
 
     def set_frame(self,frame):
@@ -90,6 +91,12 @@ class Predicter:
     def stop(self,):
         self.done = True
         print(self.count)
+        out = cv2.VideoWriter('FER.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 15, (480,640))
+ 
+        for i in range(len(self.predictions)):
+            out.write(self.predictions[i])
+        out.release()
+
 
 
 def start_app(cnn,src=0):
