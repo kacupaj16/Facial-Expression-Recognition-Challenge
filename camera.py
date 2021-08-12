@@ -4,6 +4,7 @@ import numpy as np
 from threading import Thread
 from datetime import datetime
 from time import sleep
+import csv
 
 class DataRetriever:
     def __init__(self,src=0):
@@ -60,6 +61,7 @@ class Predicter:
         self.facec = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
         #list where the images used to write the video files are stored
         self.predictions = []
+        self.pred_faces = []
 
 
     
@@ -73,18 +75,20 @@ class Predicter:
             if self.newFrame:
                 self.gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
                 self.faces = self.facec.detectMultiScale(self.gray, 1.3, 5)
+                faces_emotion = []
                 for (x, y, w, h) in self.faces:
                         fc = self.gray[y:y+h, x:x+w]
                         
                         roi = cv2.resize(fc, (48, 48))
                         #roi = cv2.normalize(roi,None)
                         pred = self.cnn.predict_emotion(roi[np.newaxis, :, :, np.newaxis])
+                        faces_emotion.append(pred)
                         cv2.putText(self.frame, pred, (x, y), self.font, 1, (255, 255, 0), 2)
                         cv2.rectangle(self.frame,(x,y),(x+w,y+h),(255,0,0),2)
                 self.displayer.frame = self.frame
-                #cv2.imwrite('f'+str(self.count).zfill(4) + '.jpg',self.frame)
                 self.count +=1
                 self.predictions.append(self.frame)
+                self.pred_faces.append(faces_emotion)
                 self.newFrame = False
 
     def set_frame(self,frame):
@@ -94,7 +98,11 @@ class Predicter:
     def stop(self,):
         self.done = True
         #at the end of the program, when there are no more frames to check, write all the predictions
-        #into a video file 
+        #into a video file and a csv file
+        f = open('predictions.csv', 'w')
+        writer = csv.writer(f,lineterminator='\n')
+        header = ['frame_id','emotions']
+        writer.writerow(header)
         p = len(self.predictions)
         g = self.retriver.count
         print('All frames processed: {0}'.format(p))
@@ -108,7 +116,9 @@ class Predicter:
         for i in range(len(self.predictions)):
             vidout=cv2.resize(self.predictions[i],(640,480)) 
             out.write(vidout)
+            writer.writerow([i,self.pred_faces[i]])
         out.release()
+        f.close()
 
 
 #app runs on three threads: one to grab the data, one to find faces and predict emotions and finally one to display results
