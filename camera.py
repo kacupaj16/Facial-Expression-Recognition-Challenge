@@ -20,6 +20,7 @@ class DataRetriever:
         self.count+=1
     
     def close(self):
+        print('All frames grabed: {0}'.format(self.count))
         self.rgb.release()
 
 class Displayer:
@@ -44,16 +45,18 @@ class Displayer:
 
 
 class Predicter:
-    def __init__(self,cnn,displayer):
+    def __init__(self,cnn,displayer,retriver):
         self.frame = None
         self.faces = None
         self.gray = None
+        self.t = None
         self.newFrame = False
         self.done = False
         self.count = 0
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.cnn = cnn
         self.displayer = displayer
+        self.retriver = retriver
         self.facec = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
         #list where the images used to write the video files are stored
         self.predictions = []
@@ -76,7 +79,6 @@ class Predicter:
                         roi = cv2.resize(fc, (48, 48))
                         #roi = cv2.normalize(roi,None)
                         pred = self.cnn.predict_emotion(roi[np.newaxis, :, :, np.newaxis])
-
                         cv2.putText(self.frame, pred, (x, y), self.font, 1, (255, 255, 0), 2)
                         cv2.rectangle(self.frame,(x,y),(x+w,y+h),(255,0,0),2)
                 self.displayer.frame = self.frame
@@ -93,7 +95,15 @@ class Predicter:
         self.done = True
         #at the end of the program, when there are no more frames to check, write all the predictions
         #into a video file 
-        out = cv2.VideoWriter('FER.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 30, (640,480))
+        p = len(self.predictions)
+        g = self.retriver.count
+        print('All frames processed: {0}'.format(p))
+        #sthe ratio grabbed frames : processed frames is calculated
+        ratio = p/g
+        camera_fps = self.retriver.fps
+        # fps for writing video is set accordingly
+        out_fps = int(camera_fps*ratio)
+        out = cv2.VideoWriter('FER.avi',cv2.VideoWriter_fourcc('M','J','P','G'), out_fps, (640,480))
  
         for i in range(len(self.predictions)):
             vidout=cv2.resize(self.predictions[i],(640,480)) 
@@ -103,16 +113,19 @@ class Predicter:
 
 #app runs on three threads: one to grab the data, one to find faces and predict emotions and finally one to display results
 def start_app(cnn,src=0):
-    startTime = datetime.now()
-    #the variable runningTime specifies the amount of time the camera should run 
-    #the variable is set to 60 seconds taking into consideration the setup time requirement 
-    #and the 30 seconds actually used to grab images
-    runningTime = 60
+    
+    #model initalization
+    cnn.predict_emotion(np.zeros((48,48))[np.newaxis, :, :, np.newaxis])
 
+    #the variable runningTime specifies the amount of time the camera should run 
+    #the variable is set to 32 seconds taking into consideration the setup time requirement 
+    #and the 30 seconds actually used to grab images
+    runningTime = 32
+    startTime = datetime.now()
     #start threads
     data_retriver = DataRetriever(src).start()
     displayer = Displayer().start()
-    predicter = Predicter(cnn,displayer).start()
+    predicter = Predicter(cnn,displayer,data_retriver).start()
 
     #actual program
     while (datetime.now()-startTime).seconds<runningTime:
