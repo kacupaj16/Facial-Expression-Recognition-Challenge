@@ -5,6 +5,8 @@ from threading import Thread
 from datetime import datetime
 from time import sleep
 import csv
+from memory_profiler import profile
+
 
 class DataRetriever:
     def __init__(self,src=0):
@@ -16,6 +18,7 @@ class DataRetriever:
         Thread(target=self.__get_data__, args=()).start()
         return self
 
+    
     def __get_data__(self):
         (_, self.frame) = self.rgb.read()
         self.count+=1
@@ -122,6 +125,7 @@ class Predicter:
 
 
 #app runs on three threads: one to grab the data, one to find faces and predict emotions and finally one to display results
+@profile
 def start_app(cnn,src=0):
     
     #model initalization
