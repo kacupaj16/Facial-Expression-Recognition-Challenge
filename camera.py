@@ -93,10 +93,11 @@ class Predicter:
         self.done = True
         #at the end of the program, when there are no more frames to check, write all the predictions
         #into a video file 
-        out = cv2.VideoWriter('FER.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 15, (480,640))
+        out = cv2.VideoWriter('FER.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 30, (640,480))
  
         for i in range(len(self.predictions)):
-            out.write(self.predictions[i])
+            vidout=cv2.resize(self.predictions[i],(640,480)) 
+            out.write(vidout)
         out.release()
 
 
