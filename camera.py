@@ -6,6 +6,7 @@ from datetime import datetime
 from time import sleep
 import csv
 from memory_profiler import profile
+from queue import Queue
 
 
 class DataRetriever:
@@ -65,6 +66,7 @@ class Predicter:
         #list where the images used to write the video files are stored
         self.predictions = []
         self.pred_faces = []
+        self.q = Queue()
 
 
     
@@ -75,7 +77,8 @@ class Predicter:
     def predict(self):
         while not self.done:
             #when a new frame is grabed a prediction is made
-            if self.newFrame:
+            if not self.q.empty():
+                self.frame = self.q.get()
                 self.gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
                 self.faces = self.facec.detectMultiScale(self.gray, 1.3, 5)
                 faces_emotion = []
@@ -93,39 +96,38 @@ class Predicter:
                 self.predictions.append(self.frame)
                 self.pred_faces.append(faces_emotion)
                 self.newFrame = False
-
-    def set_frame(self,frame):
-        self.frame = frame
-        self.newFrame = True        
+       
     
     def stop(self,):
-        self.done = True
-        #at the end of the program, when there are no more frames to check, write all the predictions
-        #into a video file and a csv file
-        f = open('predictions.csv', 'w')
-        writer = csv.writer(f,lineterminator='\n')
-        header = ['frame_id','emotions']
-        writer.writerow(header)
-        p = len(self.predictions)
-        g = self.retriver.count
-        print('All frames processed: {0}'.format(p))
-        #sthe ratio grabbed frames : processed frames is calculated
-        ratio = p/g
-        camera_fps = self.retriver.fps
-        # fps for writing video is set accordingly
-        out_fps = int(camera_fps*ratio)
-        out = cv2.VideoWriter('FER.avi',cv2.VideoWriter_fourcc('M','J','P','G'), out_fps, (640,480))
- 
-        for i in range(len(self.predictions)):
-            vidout=cv2.resize(self.predictions[i],(640,480)) 
-            out.write(vidout)
-            writer.writerow([i,self.pred_faces[i]])
-        out.release()
-        f.close()
+        wrapped_up = False
+        while not wrapped_up:
+            if self.q.empty():
+                self.done = True
+                #at the end of the program, when there are no more frames to check, write all the predictions
+                #into a video file and a csv file
+                f = open('predictions.csv', 'w')
+                writer = csv.writer(f,lineterminator='\n')
+                header = ['frame_id','emotions']
+                writer.writerow(header)
+                p = len(self.predictions)
+                print('All frames processed: {0}'.format(p))
+
+                camera_fps = self.retriver.fps
+
+                out = cv2.VideoWriter('FER.avi',cv2.VideoWriter_fourcc('M','J','P','G'), camera_fps, (640,480))
+
+                for i in range(len(self.predictions)):
+                    vidout=cv2.resize(self.predictions[i],(640,480)) 
+                    out.write(vidout)
+                    writer.writerow([i,self.pred_faces[i]])
+                out.release()
+                f.close()
+                wrapped_up = True
+        
 
 
 #app runs on three threads: one to grab the data, one to find faces and predict emotions and finally one to display results
-@profile
+#@profile
 def start_app(cnn,src=0):
     
     #model initalization
@@ -144,7 +146,7 @@ def start_app(cnn,src=0):
     #actual program
     while (datetime.now()-startTime).seconds<runningTime:
         data_retriver.__get_data__()
-        predicter.set_frame(data_retriver.frame)
+        predicter.q.put(data_retriver.frame)
 
     #end threads
     data_retriver.close()
