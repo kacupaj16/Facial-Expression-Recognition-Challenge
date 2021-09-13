@@ -11,11 +11,14 @@ from queue import Queue
 
 class DataRetriever:
     def __init__(self,src=0):
+        #initialize video stream
         self.rgb =  cv2.VideoCapture(src)
         self.fps = self.rgb.get(cv2.cv2.CAP_PROP_FPS)
+        #counter to keep track of frames grabbed
         self.count = 0
 
     def start(self):
+        #start  video stream
         Thread(target=self.__get_data__, args=()).start()
         return self
 
@@ -25,10 +28,13 @@ class DataRetriever:
         self.count+=1
     
     def close(self):
+        #before closing, total number of frames grabbed is reported
         print('All frames grabed: {0}'.format(self.count))
         self.rgb.release()
 
+
 class Displayer:
+    #initalize display window
     def __init__(self,frame=np.zeros((480,640))):
         self.frame = frame
         self.done = False
@@ -39,6 +45,7 @@ class Displayer:
         return self
 
     def display(self):
+        #as long as  frames are grabbed and processed keep displaying
         while not self.done:
             cv2.imshow('Filter', self.frame)
             if cv2.waitKey(1) == 27:
@@ -54,8 +61,6 @@ class Predicter:
         self.frame = None
         self.faces = None
         self.gray = None
-        self.t = None
-        self.newFrame = False
         self.done = False
         self.count = 0
         self.font = cv2.FONT_HERSHEY_SIMPLEX
@@ -74,9 +79,11 @@ class Predicter:
         Thread(target=self.predict,args=()).start()
         return self
 
+    
     def predict(self):
+        #until the thread is stopped from main keep processing
         while not self.done:
-            #when a new frame is grabed a prediction is made
+            #if queue not empty, continue with the next frame
             if not self.q.empty():
                 self.frame = self.q.get()
                 self.gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
@@ -91,15 +98,19 @@ class Predicter:
                         faces_emotion.append(pred)
                         cv2.putText(self.frame, pred, (x, y), self.font, 1, (255, 255, 0), 2)
                         cv2.rectangle(self.frame,(x,y),(x+w,y+h),(255,0,0),2)
+                
+                #update frame of displayer with the latest processed frame
                 self.displayer.frame = self.frame
+                #keep track of frames processed
                 self.count +=1
                 self.predictions.append(self.frame)
                 self.pred_faces.append(faces_emotion)
-                self.newFrame = False
+
        
     
     def stop(self,):
         wrapped_up = False
+        #check until the queue is empty to stop the thread and to write the video and .csv file
         while not wrapped_up:
             if self.q.empty():
                 self.done = True
@@ -109,11 +120,13 @@ class Predicter:
                 writer = csv.writer(f,lineterminator='\n')
                 header = ['frame_id','emotions']
                 writer.writerow(header)
+
+                #report number of frames processed
                 p = len(self.predictions)
                 print('All frames processed: {0}'.format(p))
-
+                
+                #set ouput video fps equal to input camera fps
                 camera_fps = self.retriver.fps
-
                 out = cv2.VideoWriter('FER.avi',cv2.VideoWriter_fourcc('M','J','P','G'), camera_fps, (640,480))
 
                 for i in range(len(self.predictions)):
@@ -130,7 +143,8 @@ class Predicter:
 #@profile
 def start_app(cnn,src=0):
     
-    #model initalization
+    #model initalization, one initial call is made to the model predict function so as to compile model
+    #this inital call will avoid delayes when the video stream stearts and the actual first frame is processed
     cnn.predict_emotion(np.zeros((48,48))[np.newaxis, :, :, np.newaxis])
 
     #the variable runningTime specifies the amount of time the camera should run 
@@ -143,7 +157,7 @@ def start_app(cnn,src=0):
     displayer = Displayer().start()
     predicter = Predicter(cnn,displayer,data_retriver).start()
 
-    #actual program
+    #while running time is less than the limit set
     while (datetime.now()-startTime).seconds<runningTime:
         data_retriver.__get_data__()
         predicter.q.put(data_retriver.frame)
